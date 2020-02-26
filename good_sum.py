@@ -2,124 +2,117 @@
 # -*- coding: utf-8 -*-
 import copy
 import itertools
+import pprint
+
+ADD_FORMATTER = lambda a, b: '({}+{})'.format(a, b)
+MUL_FORMATTER = lambda a, b: '({}*{})'.format(a, b)
+SUB1_FORMATTER = lambda a, b: '({}-{})'.format(a, b)
+SUB2_FORMATTER = lambda a, b: '({}-{})'.format(b, a)
+DIV1_FORMATTER = lambda a, b: '({}/{})'.format(a, b)
+DIV2_FORMATTER = lambda a, b: '({}/{})'.format(b, a)
 
 
 def partitions(numbers):
+    '''
+    A generator that yield all 2-partitions of a list numbers.
+    Args:
+        numbers (list): numbers,  e.g., [1, 2, 3]
+
+    Yield:
+        part1, part2 (list): two partitions
+    '''
     for i in range(1, len(numbers) // 2 + 1):
-        for comb in itertools.combinations(numbers, i):
-            numbers_copy = copy.copy(numbers)
-            p1 = comb
-            for c in comb:
-                numbers_copy.remove(c)
-            yield list(p1), list(numbers_copy)
+        if i == len(numbers) / 2:
+            for part1 in itertools.combinations(numbers[:-1], i - 1):
+                part2 = copy.copy(numbers[:-1])
+                for c in part1:
+                    part2.remove(c)
+                part1 = list(part1)
+                part1.append(numbers[-1])
+                yield list(part1), list(part2)
+        else:
+            for part1 in itertools.combinations(numbers, i):
+                part2 = copy.copy(numbers)
+                for c in part1:
+                    part2.remove(c)
+                yield list(part1), list(part2)
 
 
-def possible_two(numbers, solution=False):
-    sums = []
-    a, b = numbers
-    if solution:
-        sums.append((a + b, [a, "+", b]))
-        sums.append((a * b, [a, "*", b]))
-        sums.append((a - b, [a, "-", b]))
-        sums.append((b - a, [b, "-", a]))
-    else:
-        sums.append(a + b)
-        sums.append(a * b)
-        sums.append(a - b)
-        sums.append(b - a)
+def possible_two(a, b, a_rep=None, b_rep=None):
+    '''
+    Possible result of two numbers using +|-|*|/ operators
+    '''
+    a_rep = a_rep if a_rep is not None else a
+    b_rep = b_rep if b_rep is not None else b
+
+    yield a * b, MUL_FORMATTER
+    yield a + b, ADD_FORMATTER
+    yield a - b, SUB1_FORMATTER
+    yield b - a, SUB2_FORMATTER
     if a != 0:
-        if solution:
-            sums.append((b / a, [b, "/", a]))
-        else:
-            sums.append(b / a)
+        yield b / a, DIV2_FORMATTER
     if b != 0:
-        if solution:
-            sums.append((a / b, [a, "/", b]))
-        else:
-            sums.append(a / b)
-    return sums
+        yield a / b, DIV1_FORMATTER
 
 
-def possible(numbers):
-    possible_sums = []
-    if len(numbers) == 1: return [numbers[0]]
-    if len(numbers) == 2: return possible_two(numbers)
-    for part in partitions(numbers):
-        p1, p2 = part
-        for poss1 in possible(p1):
-            for poss2 in possible(p2):
-                possible_sums.extend(possible_two([poss1, poss2]))
-    return possible_sums
+def possible_right(target, left):
+    '''
+    Possible right value of [left +|-|*|/ right = target]
+    '''
+    yield target - left, ADD_FORMATTER
+    if left != 0:
+        yield target / left, MUL_FORMATTER
+    yield left - target, SUB1_FORMATTER
+    yield left + target, SUB2_FORMATTER
+    # left/b = target, b can not be zero either.
+    if target != 0 and left != 0:
+        yield left / target, DIV1_FORMATTER
+    # b/left = target, left can not be zero
+    if left != 0:
+        yield left * target, DIV2_FORMATTER
 
-
-#  print(list(partitions([4, 2, 3, 1])))
-#  sums = possible([10, 7, 5, 5, 2, 1])
-#  print(len(sums))
-#  print(sums)
-#  print(645 in sums)
 
 def possible_ways(numbers, target=None):
+    """
+    Possible ways using numbers, +|-|*|/, and brackets to get target.
+    If target is None, return all possible values.
+
+    Examples:
+        using [10, 7, 5, 5, 2, 1] to get 645
+        ((10*7 - 5)*2 - 1)*5 = 645
+    """
     solutions = []
+
     if len(numbers) == 1 and (numbers[0] == target or target is None):
         return [(numbers[0], '({})'.format(numbers[0]))]
+
     if len(numbers) == 2:
         a, b = numbers
-        if a * b == target or target is None:
-            solutions.append((a * b, '({}*{})'.format(a, b)))
-        if a + b == target or target is None:
-            solutions.append((a + b, '({}+{})'.format(a, b)))
-        if a - b == target or target is None:
-            solutions.append((a - b, '({}-{})'.format(a, b)))
-        if b - a == target or target is None:
-            solutions.append((b - a, '({}-{})'.format(b, a)))
-        if a != 0 and (b / a == target or target is None):
-            solutions.append((b / a, '({}/{})'.format(b, a)))
-        if b != 0 and (a / b == target or target is None):
-            solutions.append((a / b, '({}/{})'.format(a, b)))
+        for op_ret, op_formatter in possible_two(a, b):
+            if op_ret == target or target is None:
+                solutions.append((op_ret, op_formatter(a, b)))
         return solutions
 
     for part in partitions(numbers):
-        p1, p2 = part
-        p1_ways = possible_ways(p1, target=None)
-        for ways in p1_ways:
-            somme = ways[0]
-            representation = ways[1]
+        left, right = part
+        left_ways = possible_ways(left, target=None)
 
-            p2_ways = possible_ways(p2, target - somme if target is not None else None)
-            for w in p2_ways:
-                solutions.append(
-                    (somme + w[0], "({}+{})".format(representation, w[1])))
-
-            p2_ways = possible_ways(p2, target + somme if target is not None else None)
-            for w in p2_ways:
-                solutions.append(
-                    (w[0] - somme, "({}-{})".format(w[1], representation)))
-
-            if somme != 0:
-                p2_ways = possible_ways(p2, target / somme if target is not None else None)
-                for w in p2_ways:
-                    solutions.append(
-                        (somme*w[0], "({}*{})".format(representation, w[1])))
-
-            p2_ways = possible_ways(p2, somme - target if target is not None else None)
-            for w in p2_ways:
-                solutions.append(
-                    (somme-w[0], "({}-{})".format(representation, w[1])))
-
-            if target != 0:
-                p2_ways = possible_ways(p2, somme / target if target is not None else None)
-                for w in p2_ways:
-                    if w[0] != 0:
+        for left_ret, left_repr in left_ways:
+            if target is None:
+                right_ways = possible_ways(right, target)
+                for right_ret, right_repr in right_ways:
+                    for op_ret, op_formatter in possible_two(
+                            left_ret, right_ret):
                         solutions.append(
-                            (somme/w[0], "({}/{})".format(representation, w[1])))
-
-            if somme != 0:
-                p2_ways = possible_ways(p2, somme * target if target is not None else None)
-                for w in p2_ways:
-                    solutions.append(
-                        (w[0]/somme, "({}/{})".format(w[1], representation)))
+                            (op_ret, op_formatter(left_repr, right_repr)))
+            else:
+                for right_ret, op_formatter in possible_right(target, left_ret):
+                    right_ways = possible_ways(right, right_ret)
+                    for right_ret, right_repr in right_ways:
+                        solutions.append(
+                            (target, op_formatter(left_repr, right_repr)))
     return solutions
 
 
-#  print(possible_ways([50, 23, 4, 7, 10, 3, 2], 943))
-print(possible_ways([10, 7, 5, 5, 2, 1], 645))
+if __name__ == '__main__':
+    pprint.pprint(possible_ways([10, 7, 5, 5, 2, 1], 645))
