@@ -72,7 +72,7 @@ def possible_right(target, left):
         yield left * target, DIV2_FORMATTER
 
 
-def possible_ways(numbers, target=None):
+def possible_ways(numbers, target=None, memory=None):
     """
     Possible ways using numbers, +|-|*|/, and brackets to get target.
     If target is None, return all possible values.
@@ -81,25 +81,33 @@ def possible_ways(numbers, target=None):
         using [10, 7, 5, 5, 2, 1] to get 645
         ((10*7 - 5)*2 - 1)*5 = 645
     """
+    num_key = (tuple(sorted(numbers)), target)
+    if num_key in memory:
+        return memory[num_key]
+
     solutions = []
 
     if len(numbers) == 1 and (numbers[0] == target or target is None):
-        return [(numbers[0], '({})'.format(numbers[0]))]
+        solutions = [(numbers[0], '({})'.format(numbers[0]))]
+        memory[((numbers[0]), target)] = solutions
+        return solutions
 
     if len(numbers) == 2:
         a, b = numbers
         for op_ret, op_formatter in possible_two(a, b):
             if op_ret == target or target is None:
                 solutions.append((op_ret, op_formatter(a, b)))
+        num_key = (tuple(sorted(numbers)), target)
+        memory[num_key] = solutions
         return solutions
 
     for part in partitions(numbers):
         left, right = part
-        left_ways = possible_ways(left, target=None)
+        left_ways = possible_ways(left, target=None, memory=memory)
 
         for left_ret, left_repr in left_ways:
             if target is None:
-                right_ways = possible_ways(right, target)
+                right_ways = possible_ways(right, target, memory=memory)
                 for right_ret, right_repr in right_ways:
                     for op_ret, op_formatter in possible_two(
                             left_ret, right_ret):
@@ -107,12 +115,14 @@ def possible_ways(numbers, target=None):
                             (op_ret, op_formatter(left_repr, right_repr)))
             else:
                 for right_ret, op_formatter in possible_right(target, left_ret):
-                    right_ways = possible_ways(right, right_ret)
+                    right_ways = possible_ways(right, right_ret, memory=memory)
                     for right_ret, right_repr in right_ways:
                         solutions.append(
                             (target, op_formatter(left_repr, right_repr)))
+    num_key = (tuple(sorted(numbers)), target)
+    memory[num_key] = solutions
     return solutions
 
 
 if __name__ == '__main__':
-    pprint.pprint(possible_ways([10, 7, 5, 5, 2, 1], 645))
+    pprint.pprint(possible_ways([10, 7, 5, 5, 2, 1], 645, {}))
