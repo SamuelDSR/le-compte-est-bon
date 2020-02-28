@@ -3,6 +3,9 @@
 import copy
 import itertools
 import pprint
+import time
+import functools
+from eval_stack import signature
 
 ADD_FORMATTER = lambda a, b: '({}+{})'.format(a, b)
 MUL_FORMATTER = lambda a, b: '({}*{})'.format(a, b)
@@ -10,6 +13,19 @@ SUB1_FORMATTER = lambda a, b: '({}-{})'.format(a, b)
 SUB2_FORMATTER = lambda a, b: '({}-{})'.format(b, a)
 DIV1_FORMATTER = lambda a, b: '({}/{})'.format(a, b)
 DIV2_FORMATTER = lambda a, b: '({}/{})'.format(b, a)
+
+
+def timeit(func):
+    @functools.wraps(func)
+    def _wrapper(*args, **kwargs):
+        start = time.time()
+        ret = func(*args, **kwargs)
+        end = time.time()
+        print("Running time of {}: {:.2f} secs".format(
+            func.__name__, end - start))
+        return ret
+
+    return _wrapper
 
 
 def partitions(numbers):
@@ -81,15 +97,17 @@ def possible_ways(numbers, target=None, memory=None):
         using [10, 7, 5, 5, 2, 1] to get 645
         ((10*7 - 5)*2 - 1)*5 = 645
     """
-    num_key = (tuple(sorted(numbers)), target)
-    if num_key in memory:
-        return memory[num_key]
+    if memory is not None:
+        num_key = (tuple(sorted(numbers)), target)
+        if num_key in memory:
+            return memory[num_key]
 
     solutions = []
 
     if len(numbers) == 1 and (numbers[0] == target or target is None):
         solutions = [(numbers[0], '({})'.format(numbers[0]))]
-        memory[((numbers[0]), target)] = solutions
+        if memory is not None:
+            memory[((numbers[0]), target)] = solutions
         return solutions
 
     if len(numbers) == 2:
@@ -97,8 +115,9 @@ def possible_ways(numbers, target=None, memory=None):
         for op_ret, op_formatter in possible_two(a, b):
             if op_ret == target or target is None:
                 solutions.append((op_ret, op_formatter(a, b)))
-        num_key = (tuple(sorted(numbers)), target)
-        memory[num_key] = solutions
+        if memory is not None:
+            num_key = (tuple(sorted(numbers)), target)
+            memory[num_key] = solutions
         return solutions
 
     for part in partitions(numbers):
@@ -114,15 +133,28 @@ def possible_ways(numbers, target=None, memory=None):
                         solutions.append(
                             (op_ret, op_formatter(left_repr, right_repr)))
             else:
-                for right_ret, op_formatter in possible_right(target, left_ret):
+                for right_ret, op_formatter in possible_right(
+                        target, left_ret):
                     right_ways = possible_ways(right, right_ret, memory=memory)
                     for right_ret, right_repr in right_ways:
                         solutions.append(
                             (target, op_formatter(left_repr, right_repr)))
-    num_key = (tuple(sorted(numbers)), target)
-    memory[num_key] = solutions
+    if memory is not None:
+        num_key = (tuple(sorted(numbers)), target)
+        memory[num_key] = solutions
     return solutions
 
 
 if __name__ == '__main__':
-    pprint.pprint(possible_ways([10, 7, 5, 5, 2, 1], 645, {}))
+    # search all solutions without memory
+    solutions = timeit(possible_ways)([10, 7, 5, 5, 6, 2, 1], 1694, None)
+    pprint.pprint(solutions)
+
+    # search all solutions with memory
+    solutions = timeit(possible_ways)([10, 7, 5, 5, 6, 2, 1], 1694, {})
+    pprint.pprint(solutions)
+
+    # remove all equivalent solutions
+    solutions_dict = dict((signature(s[1]), s[1]) for s in solutions)
+    solutions = list(solutions_dict.values())
+    pprint.pprint(solutions)
